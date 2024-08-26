@@ -1,0 +1,93 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Intercept",
+          "version": "1.0.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "APLT27--APLT30",
+          "level": "error",
+          "message": {
+            "text": "Assure policy Ensure ssl_protocols is set to TLSv1.2 or higher: Pattern NOT FOUND"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "N/A"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endColumn": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "APLT29--WAPT05",
+          "level": "note",
+          "message": {
+            "text": "Assure policy Ensure only HTTPS is used: Pattern FOUND"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sample/sdomon.conf"
+                },
+                "region": {
+                  "startLine": 62,
+                  "startColumn": 1,
+                  "endColumn": 39
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "WAPT07",
+          "level": "error",
+          "message": {
+            "text": "Policy violation: Ensure AutoIndex is disabled Matched text:             autoindex    on;"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sample/sdomon.conf"
+                },
+                "region": {
+                  "startLine": 120,
+                  "startColumn": 1,
+                  "endColumn": 29
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "commandLine": "../binary/i audit --policy rules/nginx.yaml -t sample/ -vvvv",
+          "properties": {
+            "debug": "false",
+            "end_time": "2024-08-26T09:26:18+02:00",
+            "environment": "",
+            "execution_time_ms": "333",
+            "run_id": "2lBd0ITUKBCFcGIBYXbRX18wAFs",
+            "start_time": "2024-08-26T09:26:18+02:00"
+          }
+        }
+      ]
+    }
+  ]
+}
