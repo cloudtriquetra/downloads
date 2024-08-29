@@ -1,4 +1,13 @@
+service:
+    nginx:
+        running: true
+port:
+    tcp:443:
+        listening: true
 command:
-    nginx_autoindex_not_on:
-        exec: 'sudo nginx -T | grep -E "^\s+autoindex\\s+on;"'
-        exit-status: 1
+    nginx_listening_on_443:
+        exec: "sudo lsof -iTCP:443 -sTCP:LISTEN | grep nginx"
+        exit-status: 0
+    nginx_ssl_listen:
+        exec: 'sudo nginx -T | grep -E "^\s+listen.*443.*ssl;"'
+        exit-status: 0
