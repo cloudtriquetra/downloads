@@ -1,0 +1,4 @@
+command:
+    nginx_autoindex_not_on:
+        exec: 'sudo nginx -T | grep -E "^\s+autoindex\\s+on;"'
+        exit-status: 1
