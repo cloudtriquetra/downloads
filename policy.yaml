@@ -1,0 +1,66 @@
+#DMFA Policies
+
+Policies:
+
+  - id: "APL.T27 | APL.T30"
+    type: "runtime"
+    enforcement:
+      - environment: "all"
+        fatal: "false"
+        exceptions: "development"
+        msg_solution: "Configure ssl_protocols as : ssl_protocols TLSv1.2; or ssl_protocols TLSv1.2 TLSv1.3;"
+        msg_error: "Configured SSL Protocol is not TLS 1.2 or Higher"
+    metadata:
+      name: "DMA Nginx TLS Version"
+      description: "Ensure SSL Protocls is configured to use TLS 1.2 or Higher"
+      tags:
+        - "config"
+        - "nginx"
+        - "runtime"
+        - "enforce"
+      confidence: "high"
+      score: "8"
+    _runtime:
+      config: runtime/nginx_ssl_min_version.yaml
+
+  - id: "WAP.T07"
+    type: "runtime"
+    enforcement:
+      - environment: "all"
+        fatal: "false"
+        exceptions: "development"
+        msg_solution: "Ensure AutoIndex is NOT turned ON"
+        msg_error: "AutoIndex is configured to be ON"
+    metadata:
+      name: "Ensure AutoIndex is NOT turned ON"
+      description: "Ensure AutoIndex is not explicitly turned ON"
+      tags:
+        - "config"
+        - "runtime"
+        - "enforce"
+        - "nginx"
+      confidence: "high"
+      score: "8"
+    _runtime:
+      config: runtime/nginx_autoindex.yaml
+
+
+  - id: "WAP.T05 | APLT.29"
+    type: "runtime"
+    enforcement:
+      - environment: "all"
+        fatal: "false"
+        exceptions: "development"
+        msg_solution: "Ensure SSL / HTTPS is enforced"
+        msg_error: "SSL / HTTPS is not enforced"
+    metadata:
+      tags:
+        - "config"
+        - "runtime"
+        - "enforce"
+        - "nginx"
+      confidence: "high"
+      score: "8"
+    _runtime:
+      config: runtime/nginx_https.yaml
+    
