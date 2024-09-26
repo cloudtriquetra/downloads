@@ -1,0 +1,157 @@
+{
+    "_index": "nginx",
+    "_type": "_doc",
+    "_id": "7O245ZEB_w7TNB-kqapw",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "event_type": "policy",
+      "data": [
+        {
+          "ruleId": "WAPT07",
+          "level": "note",
+          "message": {
+            "text": "Command: nginx_autoindex_not_on: exit-status: matches expectation: 1"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nginx_autoindex_not_on"
+                },
+                "region": {
+                  "startLine": 0,
+                  "startColumn": 0,
+                  "endColumn": 0
+                }
+              }
+            }
+          ],
+          "properties": {
+            "description": "Ensure AutoIndex is not explicitly turned ON",
+            "msg-error": "AutoIndex is configured to be ON",
+            "msg-solution": "Ensure AutoIndex is NOT turned ON",
+            "name": "Ensure AutoIndex is NOT turned ON",
+            "note": "true",
+            "observe-run-id": "2lxyM6oayiU9EVlSlUxdlTO1kUF-wapt07",
+            "property": "exit-status",
+            "resource-type": "Command",
+            "result-timestamp": "2024-09-12T10:12:50Z",
+            "result-type": "detail"
+          }
+        },
+        {
+          "ruleId": "WAPT07",
+          "level": "note",
+          "message": {
+            "text": "Count: 1, Failed: 0, Skipped: 0, Duration: 0.107s"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "N/A"
+                },
+                "region": {
+                  "startLine": 0,
+                  "startColumn": 0,
+                  "endColumn": 0
+                }
+              }
+            }
+          ],
+          "properties": {
+            "description": "Ensure AutoIndex is not explicitly turned ON",
+            "msg-error": "AutoIndex is configured to be ON",
+            "msg-solution": "Ensure AutoIndex is NOT turned ON",
+            "name": "Ensure AutoIndex is NOT turned ON",
+            "note": "true",
+            "observe-run-id": "2lxyM6oayiU9EVlSlUxdlTO1kUF-wapt07",
+            "result-timestamp": "2024-09-12T10:12:50Z",
+            "result-type": "summary"
+          }
+        }
+      ],
+      "summary": {
+        "ruleId": "WAPT07",
+        "level": "note",
+        "message": {
+          "text": "Count: 1, Failed: 0, Skipped: 0, Duration: 0.107s"
+        },
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": "N/A"
+              },
+              "region": {
+                "startLine": 0,
+                "startColumn": 0,
+                "endColumn": 0
+              }
+            }
+          }
+        ],
+        "properties": {
+          "description": "Ensure AutoIndex is not explicitly turned ON",
+          "msg-error": "AutoIndex is configured to be ON",
+          "msg-solution": "Ensure AutoIndex is NOT turned ON",
+          "name": "Ensure AutoIndex is NOT turned ON",
+          "note": "true",
+          "observe-run-id": "2lxyM6oayiU9EVlSlUxdlTO1kUF-wapt07",
+          "result-timestamp": "2024-09-12T10:12:50Z",
+          "result-type": "summary"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "WAPT07",
+          "level": "note",
+          "message": {
+            "text": "Command: nginx_autoindex_not_on: exit-status: matches expectation: 1"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "nginx_autoindex_not_on"
+                },
+                "region": {
+                  "startLine": 0,
+                  "startColumn": 0,
+                  "endColumn": 0
+                }
+              }
+            }
+          ],
+          "properties": {
+            "description": "Ensure AutoIndex is not explicitly turned ON",
+            "msg-error": "AutoIndex is configured to be ON",
+            "msg-solution": "Ensure AutoIndex is NOT turned ON",
+            "name": "Ensure AutoIndex is NOT turned ON",
+            "note": "true",
+            "observe-run-id": "2lxyM6oayiU9EVlSlUxdlTO1kUF-wapt07",
+            "property": "exit-status",
+            "resource-type": "Command",
+            "result-timestamp": "2024-09-12T10:12:50Z",
+            "result-type": "detail"
+          }
+        }
+      ]
+    },
+    "fields": {
+      "results.properties.result-timestamp": [
+        "2024-09-12T10:12:50.000Z"
+      ],
+      "data.properties.result-timestamp": [
+        "2024-09-12T10:12:50.000Z",
+        "2024-09-12T10:12:50.000Z"
+      ],
+      "summary.properties.result-timestamp": [
+        "2024-09-12T10:12:50.000Z"
+      ]
+    },
+    "sort": [
+      1726135970000
+    ]
+  }
