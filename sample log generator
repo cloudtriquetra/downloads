@@ -1,0 +1,5 @@
+while true; do
+  echo '{"timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "level": "info", "message": "Sample log message", "service": "example-service"}' >> /home/arkaprava/secops/_log/sample.log
+  echo "" >> /home/arkaprava/secops/_log/sample.log
+  sleep 5
+done
