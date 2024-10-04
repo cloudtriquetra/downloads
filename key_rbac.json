@@ -1,0 +1,28 @@
+{
+  "standalone_agent": {
+    "cluster": [
+      "monitor"
+    ],
+    "indices": [
+      {
+        "names": [
+          "logs-*-*",
+          "metrics-*-*",
+          "traces-*-*",
+          "synthetics-*-*"
+        ],
+        "privileges": [
+          "auto_configure",
+          "create_doc"
+        ],
+        "allow_restricted_indices": false
+      }
+    ],
+    "applications": [],
+    "run_as": [],
+    "metadata": {},
+    "transient_metadata": {
+      "enabled": true
+    }
+  }
+}
