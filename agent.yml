@@ -1,0 +1,17 @@
+outputs:
+  default:
+    type: elasticsearch
+    hosts:
+      - 'https://172.16.154.1:9200'
+    ssl.ca_trusted_fingerprint: 5e7d78d14bd6f56a49f88fd2893cdf4b33032453dd0c0e51bd5726f618d50dc8
+    api_key: ''
+    preset: balanced
+inputs:
+  - id: logfile-logs-intercept
+    type: filestream
+    streams:
+      - id: intercept-test01
+        data_stream:
+          dataset: intercept
+        paths:
+          - /home/arkaprava/secops/_log/*.log
