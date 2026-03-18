@@ -1,44 +1,46 @@
 #!/bin/bash
 
-# 1. Setup
+# Define Host Info
 HOST_FQDN=$(hostname -f)
+# Using the Primary Interface IP (10.198.25.106) found in your screenshot
 TARGET_IP=$(hostname -I | awk '{print $1}')
 TMP_FILE=$(mktemp)
 
-# 2. UNIVERSAL DISCOVERY (Multiple Layers)
-# Layers: 1. Listeners, 2. NAT/iptables, 3. IPVS/LB, 4. NFTables, 5. Common Service Sweep
+# 1. DYNAMIC DISCOVERY (No hardcoded port lists)
+# We pull ports from:
+#   a) Standard Listeners (netstat)
+#   b) Active NAT translations (conntrack) - This catches the "Red Entry"
+#   c) Kernel IPVS rules (ipvsadm)
 ports=$( ( 
     sudo netstat -tanpu | grep LISTEN | awk '{print $4}' | rev | cut -d: -f1 | rev;
-    sudo iptables -t nat -L -n 2>/dev/null | grep -oE "dpt:[0-9]+" | cut -d: -f2;
-    sudo nft list ruleset 2>/dev/null | grep -oE "dport [0-9]+" | awk '{print $2}';
+    sudo conntrack -L 2>/dev/null | grep "$TARGET_IP" | grep -oE "dport=[0-9]+" | cut -d= -f2;
     sudo ipvsadm -L -n 2>/dev/null | grep -oE ":[0-9]+ " | tr -d ': ';
-    echo -e "80\n443\n6443\n8080\n8443"
+    sudo nft list ruleset 2>/dev/null | grep -oE "dport [0-9]+" | awk '{print $2}'
 ) | grep -E '^[0-9]+$' | sort -u)
 
 for port in $ports; do
+    # Skip high ephemeral ports (>49151)
     if [ "$port" -gt 49151 ] || [ "$port" -eq 0 ]; then continue; fi
 
-    # Probe via External IP (Primary Interface)
+    # Probe the target IP
     raw_cert=$(echo | timeout 2 openssl s_client -connect "$TARGET_IP":"$port" -servername "$HOST_FQDN" 2>/dev/null)
 
     if [[ "$raw_cert" == *"-----BEGIN CERTIFICATE-----"* ]]; then
         clean_cert=$(echo "$raw_cert" | openssl x509)
 
-        # Extract Fields
+        # Extraction logic
         cn=$(echo "$clean_cert" | openssl x509 -noout -subject -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
         issuer=$(echo "$clean_cert" | openssl x509 -noout -issuer -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
         
-        # Handle the Red Entry (Ingress Controller)
+        # Identity Logic for the Red Entry
         if [[ "$raw_cert" == *"Fake Certificate"* ]]; then
             cn="Kubernetes Ingress Controller Fake Certificate"
             issuer="Kubernetes Ingress Controller Fake Certificate"
         fi
 
-        # Serial Number Formatting
+        # Serial Number (Preserve Colons + Uppercase)
         serial=$(echo "$clean_cert" | openssl x509 -noout -serial | cut -d'=' -f2 | tr '[:lower:]' '[:upper:]')
-        if [[ ! "$serial" == *":"* ]]; then
-            serial=$(echo "$serial" | sed 's/..\B/&:/g')
-        fi
+        [[ ! "$serial" == *":"* ]] && serial=$(echo "$serial" | sed 's/..\B/&:/g')
         
         algo=$(echo "$clean_cert" | openssl x509 -noout -text | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
 
@@ -46,7 +48,7 @@ for port in $ports; do
     fi
 done
 
-# 3. CSV Generation with Deduping
+# 2. Group by Serial and Output CSV
 echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
 
 if [ -s "$TMP_FILE" ]; then
