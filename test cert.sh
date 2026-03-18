@@ -1,31 +1,42 @@
 #!/bin/bash
 
-# 1. Identify all listening or active ports (including container-forwarded ones)
-ports=$(netstat -tuln | awk 'NR>2 {print $4}' | awk -F: '{print $NF}' | grep -v '^$' | sort -u)
+# Get the host's FQDN
+HOSTNAME=$(hostname -f)
 
-echo -e "\n%-8s %-25s %-30s %-40s" "PORT" "ALGORITHM" "COMMON NAME (CN)" "SAN / FQDNs"
-echo "------------------------------------------------------------------------------------------------------------------------"
+# Print the CSV Header
+echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
+
+# Find all unique ports that are either listening or active
+# This handles the 'hidden' container ports seen in your netstat screenshot
+ports=$(netstat -ant | grep -E 'LISTEN|:8080|:8443' | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '^$' | sort -u)
 
 for port in $ports; do
-    # 2. Extract full cert text
-    cert_data=$(timeout 2 openssl s_client -connect 127.0.0.1:"$port" -servername localhost </dev/null 2>/dev/null | openssl x509 -noout -text 2>/dev/null)
-
-    if [ -n "$cert_data" ]; then
-        # Extract Algorithm
-        algo=$(echo "$cert_data" | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
+    # Connect and pull the certificate
+    # We use -servername with the hostname to ensure we get the right SNI cert
+    raw_cert=$(timeout 2 openssl s_client -connect 127.0.0.1:"$port" -servername "$HOSTNAME" </dev/null 2>/dev/null)
+    
+    if [ -n "$raw_cert" ]; then
+        # Parse the details using openssl x509
+        cert_info=$(echo "$raw_cert" | openssl x509 -noout -text 2>/dev/null)
         
-        # Extract Common Name (CN)
-        cn=$(echo "$cert_data" | grep "Subject:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
-        
-        # Extract SANs (Subject Alternative Names) - this is where FQDNs usually live
-        sans=$(echo "$cert_data" | sed -n '/X509v3 Subject Alternative Name/{n;p}' | xargs | sed 's/DNS://g')
+        if [ -n "$cert_info" ]; then
+            # 1. Common Name (CN)
+            cn=$(echo "$cert_info" | grep "Subject:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
+            
+            # 2. Serial Number (Format: hex string without colons)
+            serial=$(echo "$cert_info" | grep -A1 "Serial Number:" | tail -n1 | xargs | tr -d ':' | tr '[:lower:]' '[:upper:]')
+            
+            # 3. Issuer Common Name
+            issuer=$(echo "$cert_info" | grep "Issuer:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
+            
+            # 4. Discovery Source (Formatted as FQDN:PORT)
+            discovery="$HOSTNAME:$port"
+            
+            # 5. Signature Algorithm
+            algo=$(echo "$cert_info" | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
 
-        # Simple validation: Mark SHA1 or MD5 as weak
-        if [[ "$algo" == *"sha1"* || "$algo" == *"md5"* ]]; then
-            algo="$algo (!)"
+            # Output as CSV row
+            echo "${cn:-[Unknown]},${serial:-[N/A]},${issuer:-[Unknown]},$discovery,$algo"
         fi
-
-        printf "%-8s %-25s %-30s %-40s\n" "$port" "$algo" "${cn:-[None]}" "${sans:-[None]}"
     fi
 done
-echo -e "------------------------------------------------------------------------------------------------------------------------\n"
