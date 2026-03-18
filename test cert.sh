@@ -1,44 +1,65 @@
 #!/bin/bash
 
-# Get Host Info
-HOST_FQDN=$(hostname -f)
-HOST_IP=$(hostname -I | awk '{print $1}')
+# Define the Host FQDN
+FQDN=$(hostname -f)
+TMP_FILE="/tmp/cert_data.tmp"
+echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm" > "$TMP_FILE"
 
-# Print CSV Header
-echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
-
-# Identify ports from netstat (including container-forwarded ports like 8080/8443)
-ports=$(sudo netstat -tanpu | grep -E 'LISTEN|:8080|:8443' | awk '{print $4}' | rev | cut -d: -f1 | rev | grep -E '^[0-9]+$' | sort -u)
+# 1. Get all numeric ports (Listen, established, or forwarded)
+ports=$(sudo netstat -tanpu | awk '{print $4}' | grep -oE '[0-9]+$' | sort -u)
 
 for port in $ports; do
-    # Try connecting using the FQDN first (best for SNI/K8s), then fall back to IP
-    raw_info=$(timeout 2 openssl s_client -connect "$HOST_IP":"$port" -servername "$HOST_FQDN" </dev/null 2>/dev/null)
+    # Try connecting with SNI
+    cert_raw=$(timeout 2 openssl s_client -connect 127.0.0.1:"$port" -servername "$FQDN" </dev/null 2>/dev/null)
 
-    if [ -n "$raw_info" ]; then
-        # Parse certificate using openssl x509
-        cert_text=$(echo "$raw_info" | openssl x509 -noout -text 2>/dev/null)
+    if [[ -n "$cert_raw" ]]; then
+        # Parse certificate
+        cert_info=$(echo "$cert_raw" | openssl x509 -noout -text 2>/dev/null)
         
-        if [ -n "$cert_text" ]; then
-            # 1. Common Name: Look for CN= and grab until comma or EOL
-            cn=$(echo "$cert_text" | grep "Subject:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
-            # Fallback if CN is missing (common in some K8s certs)
-            [[ -z "$cn" ]] && cn=$(echo "$cert_text" | grep "Subject:" | awk -F'=' '{print $NF}' | xargs)
+        if [[ -n "$cert_info" ]]; then
+            # COMMON NAME - Match the "Fake Certificate" logic specifically
+            if [[ "$cert_raw" == *"Kubernetes Ingress Controller Fake Certificate"* ]]; then
+                cn="Kubernetes Ingress Controller Fake Certificate"
+                issuer="Kubernetes Ingress Controller Fake Certificate"
+            else
+                cn=$(echo "$cert_info" | grep "Subject:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
+                issuer=$(echo "$cert_info" | grep "Issuer:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
+            fi
 
-            # 2. Serial Number: Get hex, remove colons, uppercase
-            serial=$(echo "$cert_text" | grep -A1 "Serial Number:" | tail -n1 | xargs | tr -d ':' | tr '[:lower:]' '[:upper:]')
+            # SERIAL NUMBER - Keeping colons and uppercase to match your photo
+            serial=$(echo "$cert_raw" | openssl x509 -noout -serial 2>/dev/null | cut -d'=' -f2 | tr '[:lower:]' '[:upper:]')
+            # Format serial to add colons every 2 characters if they are missing
+            if [[ ! "$serial" == *":"* ]]; then
+                serial=$(echo "$serial" | sed 's/../&:/g; s/:$//')
+            fi
 
-            # 3. Issuer Common Name: Specifically targeting the CN in the Issuer field
-            issuer=$(echo "$cert_text" | grep "Issuer:" | sed -n 's/.*CN = //p' | cut -d',' -f1 | xargs)
-            # Fallback for Issuer
-            [[ -z "$issuer" ]] && issuer=$(echo "$cert_text" | grep "Issuer:" | awk -F'=' '{print $NF}' | xargs)
+            # DISCOVERY SOURCE
+            discovery="$FQDN:$port"
 
-            # 4. Discovery Source: Format matches your 1st photo (FQDN:Port)
-            discovery="$HOST_FQDN:$port"
+            # ALGORITHM
+            algo=$(echo "$cert_info" | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
 
-            # 5. Signature Algorithm
-            algo=$(echo "$cert_text" | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
-
-            echo "${cn:-[Unknown]},${serial:-[N/A]},${issuer:-[Unknown]},$discovery,$algo"
+            # Append to temp file
+            echo "${cn:-[Unknown]},$serial,${issuer:-[Unknown]},$discovery,$algo" >> "$TMP_FILE"
         fi
     fi
 done
+
+# 2. GROUPING LOGIC
+# This merges multiple discovery sources (ports) into one line per certificate
+awk -F, 'BEGIN {OFS=","} 
+NR==1 {print; next} 
+{
+    key=$1 FS $2 FS $3; 
+    if (discovery[key] == "") {
+        discovery[key]=$4; 
+        algo[key]=$5
+    } else {
+        discovery[key]=discovery[key]"; "$4
+    }
+} 
+END {
+    for (k in discovery) print k, discovery[k], algo[k]
+}' "$TMP_FILE"
+
+rm "$TMP_FILE"
