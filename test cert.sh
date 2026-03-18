@@ -3,46 +3,61 @@
 # Define Host Info
 HOST_FQDN=$(hostname -f)
 HOST_IP=$(hostname -I | awk '{print $1}')
+TMP_FILE=$(mktemp)
 
-# Print CSV Header
-echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
-
-# Identify ALL unique listening ports (Generic - no hardcoded ports)
+# 1. Collect all raw certificate data into a temporary file
+# Format: Serial|CommonName|Issuer|Algorithm|Endpoint
 ports=$(sudo netstat -tanpu | grep LISTEN | awk '{print $4}' | rev | cut -d: -f1 | rev | grep -E '^[0-9]+$' | sort -u)
 
 for port in $ports; do
-    # Perform the SSL handshake
     raw_cert=$(echo | timeout 3 openssl s_client -connect "$HOST_IP":"$port" -servername "$HOST_FQDN" 2>/dev/null)
 
-    # Only proceed if the port is actually serving a certificate
     if [[ "$raw_cert" == *"-----BEGIN CERTIFICATE-----"* ]]; then
-        
-        # Extract the cert block for parsing
         clean_cert=$(echo "$raw_cert" | openssl x509)
 
-        # 1. Common Name - Targeted RFC extraction
+        # Extract Fields
         cn=$(echo "$clean_cert" | openssl x509 -noout -subject -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
+        issuer=$(echo "$clean_cert" | openssl x509 -noout -issuer -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
         
-        # 2. Serial Number - Preserving/Adding colons (:) and forcing Uppercase
+        # Serial Number with Colons and Uppercase
         serial=$(echo "$clean_cert" | openssl x509 -noout -serial | cut -d'=' -f2 | tr '[:lower:]' '[:upper:]')
-        
-        # Force colons if they are missing (Format: XX:XX:XX...)
         if [[ ! "$serial" == *":"* ]]; then
             serial=$(echo "$serial" | sed 's/..\B/&:/g')
         fi
         
-        # 3. Issuer Common Name
-        issuer=$(echo "$clean_cert" | openssl x509 -noout -issuer -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
-        
-        # 4. Discovery Source
-        discovery="$HOST_FQDN:$port"
-        
-        # 5. Signature Algorithm
         algo=$(echo "$clean_cert" | openssl x509 -noout -text | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
 
-        # Output the row only if we found data
-        if [[ -n "$serial" ]]; then
-            echo "${cn:-[Unknown]},$serial,${issuer:-[Unknown]},$discovery,$algo"
-        fi
+        # Append to temp file using a pipe delimiter
+        echo "$serial|$cn|$issuer|$algo|$HOST_FQDN:$port" >> "$TMP_FILE"
     fi
 done
+
+# 2. Process the temp file to group by Serial Number and output CSV
+echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
+
+if [ -s "$TMP_FILE" ]; then
+    awk -F'|' '
+    {
+        serial=$1; cn=$2; issuer=$3; algo=$4; endpoint=$5;
+        
+        if (!(serial in seen)) {
+            order[++count] = serial
+            cns[serial] = (cn == "" ? "[Unknown]" : cn)
+            issuers[serial] = (issuer == "" ? "[Unknown]" : issuer)
+            algos[serial] = algo
+            seen[serial] = 1
+        }
+        # Group endpoints
+        if (sources[serial] == "") sources[serial] = endpoint
+        else sources[serial] = sources[serial] ", " endpoint
+    }
+    END {
+        for (i=1; i<=count; i++) {
+            s = order[i]
+            # Print with quotes to handle commas in the Discovery Source cell
+            printf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n", cns[s], s, issuers[s], sources[s], algos[s]
+        }
+    }' "$TMP_FILE"
+fi
+
+rm "$TMP_FILE"
