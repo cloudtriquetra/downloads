@@ -35,7 +35,4 @@ for port in $ports; do
             echo "${cn:-[Unknown]},${serial:-[N/A]},${issuer:-[Unknown]},$(hostname):$port,${algo:-[Unknown]}"
         fi
     fi
-done            continue
-        fi
-    fi
 done
