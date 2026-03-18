@@ -1,45 +1,47 @@
 #!/bin/bash
 
-# 1. Dynamic Environment Detection
+# Define Host Info
 HOST_FQDN=$(hostname -f)
 HOST_IP=$(hostname -I | awk '{print $1}')
 
+# Print CSV Header
 echo "Common name,Serial number,Issuer common name,Discovery source,Signature Algorithm"
 
-# 2. Generic Port Discovery
-# This finds ALL unique ports that are:
-# - LISTEN (Standard servers)
-# - ESTABLISHED/TIME_WAIT (K8s/Containerized forwarding)
-# We exclude common non-SSL ports like 22 (SSH) to speed it up.
-ports=$(sudo netstat -tanpu | awk '{print $4}' | grep -oE '[0-9]+$' | grep -vE '^(22|111)$' | sort -u)
+# Identify ports
+ports=$(sudo netstat -tanpu | grep -E 'LISTEN|:8080|:8443' | awk '{print $4}' | rev | cut -d: -f1 | rev | grep -E '^[0-9]+$' | sort -u)
 
 for port in $ports; do
-    # 3. The "Knock" - Try to see if it's an SSL/TLS port
-    # We use a 2-second timeout to keep the script fast on non-SSL ports
-    raw_cert=$(echo | timeout 2 openssl s_client -connect "$HOST_IP":"$port" -servername "$HOST_FQDN" 2>/dev/null)
+    # Connect and grab the certificate
+    raw_cert=$(echo | timeout 3 openssl s_client -connect "$HOST_IP":"$port" -servername "$HOST_FQDN" 2>/dev/null)
 
-    # 4. Process only if a certificate is actually found
     if [[ "$raw_cert" == *"-----BEGIN CERTIFICATE-----"* ]]; then
-        
-        # Extract the cert into a variable to avoid "stdin" errors
+        # Extract the cert block for parsing
         clean_cert=$(echo "$raw_cert" | openssl x509)
 
-        # Robust Parsing
-        cn=$(echo "$clean_cert" | openssl x509 -noout -subject -nameopt RFC2253 | sed -n 's/.*CN=\([^,]*\).*/\1/p' | xargs)
-        issuer=$(echo "$clean_cert" | openssl x509 -noout -issuer -nameopt RFC2253 | sed -n 's/.*CN=\([^,]*\).*/\1/p' | xargs)
+        # 1. Common Name - Using a simpler AWK split to avoid [Unknown]
+        cn=$(echo "$clean_cert" | openssl x509 -noout -subject -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
+        
+        # 2. Serial Number - PRESERVING COLONS and forcing Uppercase
         serial=$(echo "$clean_cert" | openssl x509 -noout -serial | cut -d'=' -f2 | tr '[:lower:]' '[:upper:]')
+        
+        # 3. Issuer Common Name
+        issuer=$(echo "$clean_cert" | openssl x509 -noout -issuer -nameopt RFC2253 | awk -F'CN=' '{print $2}' | cut -d',' -f1 | xargs)
+        
+        # 4. Discovery Source
+        discovery="$HOST_FQDN:$port"
+        
+        # 5. Signature Algorithm
         algo=$(echo "$clean_cert" | openssl x509 -noout -text | grep "Signature Algorithm" | head -1 | awk -F: '{print $2}' | xargs)
 
-        # 5. Generic "Fake/Internal" Labeling
-        # Handles K8s ingress, but also generic self-signed or internal CA's
+        # Handle the "Fake Certificate" string specifically for your report
         if [[ "$raw_cert" == *"Fake Certificate"* ]]; then
             cn="Kubernetes Ingress Controller Fake Certificate"
             issuer="Kubernetes Ingress Controller Fake Certificate"
         fi
 
-        # If CN is still empty (some system certs), use the full Subject path
-        [[ -z "$cn" ]] && cn=$(echo "$clean_cert" | openssl x509 -noout -subject -nameopt RFC2253 | awk -F'=' '{print $NF}')
-
-        echo "${cn:-[Unknown]},$serial,${issuer:-[Unknown]},$HOST_FQDN:$port,$algo"
+        # Final check: if CN is empty, use the Serial Number as a fallback for the row
+        if [[ -n "$serial" ]]; then
+            echo "${cn:-[Unknown]},$serial,${issuer:-[Unknown]},$discovery,$algo"
+        fi
     fi
-done | sort -u
+done
